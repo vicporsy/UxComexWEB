@@ -1127,16 +1127,7 @@
             const pedidosPagina = lista.slice(inicio, fim);
 
             pedidosPagina.forEach(pedido => {
-                const statusClasses = {
-                    0: 'secondary',  // Pendente
-                    1: 'primary',    // Novo
-                    2: 'warning',    // Processando
-                    3: 'success',    // Completo
-                    4: 'danger'      // Cancelado
-                };
-                const statusClass = statusClasses[pedido.status] || 'secondary';
                 let clienteNome = clientes.data.find(f => f.id == pedido.clientId).name;
-
                 pedido.status != 3 && pedido.status != 4 ?
                     tbody.append(`
                         <tr>
@@ -1144,7 +1135,7 @@
                             <td>${clienteNome}</td>
                             <td>${formatDate(pedido.createdAt)}</td>
                             <td>R$ ${pedido.priceOrder.toFixed(2)}</td>
-                            <td><span class="badge bg-${statusClass}">${obterDescricaoStatus(pedido.status)}</span></td>
+                            <td><span class="badge bg-${statusColor(pedido.status)}">${obterDescricaoStatus(pedido.status)}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-info" onclick="verDetalhes(${pedido.id})">
                                     <i class="fas fa-eye"></i>
@@ -1162,7 +1153,7 @@
                             <td>${clienteNome}</td>
                             <td>${formatDate(pedido.createdAt)}</td>
                             <td>R$ ${pedido.priceOrder.toFixed(2)}</td>
-                            <td><span class="badge bg-${statusClass}">${obterDescricaoStatus(pedido.status)}</span></td>
+                            <td><span class="badge bg-${statusColor(pedido.status)}">${obterDescricaoStatus(pedido.status)}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-info" onclick="verDetalhes(${pedido.id})">
                                     <i class="fas fa-eye"></i>
@@ -1233,6 +1224,18 @@
             atualizarListaPedidos();
         }
 
+        function statusColor(status) {
+                switch (status)
+                {
+                    case 0: return 'secondary';  // Pendente
+                    case 1: return 'primary';    // Novo
+                    case 2: return 'warning';    // Processando
+                    case 3: return 'success';    // Completo
+                    case 4: return 'danger';     // Cancelado
+                    default: return 'secondary';
+                };
+        }
+
         function atualizarDashboard() {
             $('#totalClientes').text(clientes.data.filter(f => f.isActive).length);
             $('#totalProdutos').text(produtos.data.filter(f => f.isActive).length);
@@ -1244,16 +1247,18 @@
             : 0;
             
             $('#totalVendas').text('R$ ' + totalVendas.toFixed(2));
-            debugger
+            
             // Últimos pedidos
-            const ultimosPedidos = pedidos.data.slice(-5).reverse();
+                  const ultimosPedidos = pedidos.data
+                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                    .slice(0, 5);
             let htmlUltimosPedidos = '';
             if (ultimosPedidos.length > 0) {
                 ultimosPedidos.forEach(pedido => {
                     const clienteNome = clientes.data.find(f => f.id == pedido.clientId).name;
                     htmlUltimosPedidos += `
                         <div class="d-flex justify-content-between mb-2">
-                            <span>Pedido #${pedido.id} <b>(${statusNome(pedido.status)})</b> - ${clienteNome}</span>   
+                            <span><span class="badge bg-${statusColor(pedido.status)}">${obterDescricaoStatus(pedido.status)}</span> Pedido #${pedido.id} - ${clienteNome}</span>
                             <strong>R$ ${pedido.priceOrder.toFixed(2)}</strong>
                         </div>
                     `;
@@ -1482,23 +1487,6 @@
             });
         }
 
-        function statusNome(status) {
-            switch (status) {
-                case 0:
-                    return 'Pendente';
-                case 1:
-                    return 'Novo';
-                case 2:
-                    return 'Processando';
-                case 3:
-                    return 'Completo';
-                case 4:
-                    return 'Cancelado';
-                default:
-                    return 'Desconhecido';
-            }
-        }
-
         function formatDate(date) {
                 const dataFormatada = new Date(date).toLocaleString('pt-BR', {
                     day: '2-digit',
@@ -1520,7 +1508,7 @@
                     <h5>Pedido #${pedido.id}</h5>
                     <p><strong>Cliente:</strong> ${clientName}</p>
                     <p><strong>Data:</strong> ${formatDate(pedido.createdAt)}</p>
-                    <p><strong>Status:</strong> ${statusNome(pedido.status)}</p>
+                    <p><strong>Status:</strong> ${obterDescricaoStatus(pedido.status)}</p>
                     <hr>
                     <h6>Itens:</h6>
                     <ul>
@@ -1550,13 +1538,6 @@
 
         async function trocarStatusPedido(pedidoId) {
             const pedido = pedidos.data.find(p => p.id === pedidoId);
-            const statusOptions = {
-                0: 'Pendente',
-                1: 'Novo',
-                2: 'Processando',
-                3: 'Completo',
-                4: 'Cancelado'
-            };
 
             let optionsHtml = '';
             Object.keys(statusOptions).forEach(key => {
@@ -1569,7 +1550,7 @@
                 html: `
                     <div class="text-start">
                         <p><strong>Pedido:</strong> #${pedido.id}</p>
-                        <p><strong>Status atual:</strong> ${statusOptions[pedido.status]}</p>
+                        <p><strong>Status atual:</strong> ${obterDescricaoStatus[pedido.status]}</p>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Novo Status:</label>
                             <select id="swal-status" class="form-select">
