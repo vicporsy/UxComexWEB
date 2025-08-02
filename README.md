@@ -35,6 +35,10 @@ Login: sa
 
 Senha: #Maluko1998
 
+### Criar os database:
+
+GLOBAL e GLOBAL_LOG
+
 ### 4. Configurar NuGet Local no Visual Studio
 
 Abra o Visual Studio
