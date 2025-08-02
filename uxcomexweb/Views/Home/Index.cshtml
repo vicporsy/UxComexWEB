@@ -292,7 +292,7 @@
                 <div class="col-md-3">
                     <div class="stats-card">
                         <div class="stats-number" id="totalPedidos">0</div>
-                        <div>Pedidos</div>
+                        <div>Pedidos Ativos</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -657,7 +657,6 @@
                 });
             });
 
-            // Mudança no select de produto
             $('#produtoPedido').change(function() {
                 const produtoId = $(this).val();
                 if (produtoId) {
@@ -684,7 +683,6 @@
                 return;
             }
 
-            // Se é o primeiro item, marcar pedido como em andamento e travar cliente
             if (itensPedidoAtual.length === 0) {
                 pedidoEmAndamento = true;
                 $('#clientePedidoId').prop('disabled', true);
@@ -711,8 +709,7 @@
             $('#precoUnitario').val('');
         });
 
-                // Torne a função do evento click assíncrona
-        $('#finalizarPedido').click(async function() { // Adicione 'async' aqui
+        $('#finalizarPedido').click(async function() { 
             const clienteId = $('#clientePedidoId').val();
 
             if (!clienteId || itensPedidoAtual.length === 0) {
@@ -730,12 +727,13 @@
             };
 
             try {
-                // Aguarde a conclusão do postPedido antes de continuar
                 await postPedido(pedido);
 
                 // Só execute este código após o pedido ser enviado com sucesso
                 pedidos.data.push(pedido);
                 await carregarDadosClientes();
+                limparSelecaoCliente();
+                atualizarSelectProdutos();
                 atualizarListaPedidos();
                 atualizarListaProdutos();
 
@@ -1049,7 +1047,6 @@
             $('#clientePedidoId').val(id);
             $('#listaClientesSugestoes').hide();
 
-            // Adicionar classe visual de selecionado
             $('#buscaCliente').addClass('cliente-selecionado');
         }
 
@@ -1122,7 +1119,7 @@
             tbody.empty();
 
             const lista = pedidosFiltrados?.length > 0 || $('#filtroPedido').val() ? pedidosFiltrados : pedidos.data;
-            lista.sort((a, b) => b.id - a.id); // Ordenar por ID decrescente (mais recentes primeiro)
+            lista.sort((a, b) => b.id - a.id); 
 
             const totalPaginas = Math.ceil(lista.length / pedidosPorPagina);
             const inicio = (paginaAtualPedidos - 1) * pedidosPorPagina;
@@ -1139,22 +1136,13 @@
                 };
                 const statusClass = statusClasses[pedido.status] || 'secondary';
                 let clienteNome = clientes.data.find(f => f.id == pedido.clientId).name;
-                const dataFormatada = new Date(pedido.createdAt).toLocaleString('pt-BR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                });
 
-                // Usando && (mais comum)
                 pedido.status != 3 && pedido.status != 4 ?
                     tbody.append(`
                         <tr>
                             <td>#${pedido.id}</td>
                             <td>${clienteNome}</td>
-                            <td>${dataFormatada}</td>
+                            <td>${formatDate(pedido.createdAt)}</td>
                             <td>R$ ${pedido.priceOrder.toFixed(2)}</td>
                             <td><span class="badge bg-${statusClass}">${obterDescricaoStatus(pedido.status)}</span></td>
                             <td>
@@ -1172,7 +1160,7 @@
                         <tr>
                             <td>#${pedido.id}</td>
                             <td>${clienteNome}</td>
-                            <td>${dataFormatada}</td>
+                            <td>${formatDate(pedido.createdAt)}</td>
                             <td>R$ ${pedido.priceOrder.toFixed(2)}</td>
                             <td><span class="badge bg-${statusClass}">${obterDescricaoStatus(pedido.status)}</span></td>
                             <td>
@@ -1231,7 +1219,6 @@
                 `);
             }
 
-            // Botão "Próximo"
             if (paginaAtualPedidos < totalPaginas) {
                 paginacao.append(`
                     <li class="page-item">
@@ -1249,7 +1236,7 @@
         function atualizarDashboard() {
             $('#totalClientes').text(clientes.data.filter(f => f.isActive).length);
             $('#totalProdutos').text(produtos.data.filter(f => f.isActive).length);
-            $('#totalPedidos').text(pedidos.data.length);
+            $('#totalPedidos').text(pedidos.data.filter(f => f.status != 3 && f.status != 4).length);
 
             const pedidosFinalizados = pedidos.data.filter(p => p.status == 3);
             const totalVendas = pedidosFinalizados.length > 0
@@ -1266,7 +1253,7 @@
                     const clienteNome = clientes.data.find(f => f.id == pedido.clientId).name;
                     htmlUltimosPedidos += `
                         <div class="d-flex justify-content-between mb-2">
-                            <span>Pedido #${pedido.id} - ${clienteNome}</span>
+                            <span>Pedido #${pedido.id} <b>(${statusNome(pedido.status)})</b> - ${clienteNome}</span>   
                             <strong>R$ ${pedido.priceOrder.toFixed(2)}</strong>
                         </div>
                     `;
@@ -1278,7 +1265,7 @@
 
             // Produtos mais vendidos
             const produtosVendidos = {};
-            pedidos.data.forEach(pedido => {
+            pedidos.data.filter(f => f.status == 3).forEach(pedido => {
                 pedido.items.forEach(item => {
                     const itemName = produtos.data.find(f => f.id == item.productId).name;
                     if (produtosVendidos[itemName]) {
@@ -1476,11 +1463,9 @@
                     itensPedidoAtual = [];
                     pedidoEmAndamento = false;
 
-                    // Liberar seleção de cliente
                     $('#clientePedidoId').prop('disabled', false);
                     $('#clientePedidoId').val('');
 
-                    // Limpar campos de produto
                     $('#produtoPedido').val('');
                     $('#quantidadeProduto').val(1);
                     $('#precoUnitario').val('');
@@ -1514,14 +1499,27 @@
             }
         }
 
-                function verDetalhes(pedidoId) {
+        function formatDate(date) {
+                const dataFormatada = new Date(date).toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+
+                return dataFormatada;
+        }
+
+        function verDetalhes(pedidoId) {
             const pedido = pedidos.data.find(p => p.id === pedidoId);
             const clientName = clientes.data.find(f => f.id == pedido.clientId).name;
             let detalhes = `
                 <div class="text-start">
                     <h5>Pedido #${pedido.id}</h5>
                     <p><strong>Cliente:</strong> ${clientName}</p>
-                    <p><strong>Data:</strong> ${pedido.createdAt}</p>
+                    <p><strong>Data:</strong> ${formatDate(pedido.createdAt)}</p>
                     <p><strong>Status:</strong> ${statusNome(pedido.status)}</p>
                     <hr>
                     <h6>Itens:</h6>
@@ -1600,6 +1598,7 @@
 
                 await atualizarPedidoStatus(pedido);
                 await carregarDadosClientes();
+                atualizarSelectProdutos();
                 atualizarListaPedidos();
                 atualizarDashboard();
 
@@ -1615,7 +1614,6 @@
 
         async function atualizarPedidoStatus(pedido) {
             try {
-                // Fazer a requisição PUT para a API
                 const response = await fetch('/api/order/Put', {
                     method: 'PUT',
                     headers: {
@@ -1627,10 +1625,8 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // Mostrar sucesso
                     Swal.fire('Sucesso!', 'Sucesso ao atualizar produto!', 'success');
 
-                    // Recarregar a lista de produtos
                     await carregarDadosClientes();
 
                 } else {
@@ -1645,24 +1641,19 @@
 
                 async function carregarDadosClientes() {
             try {
-                // Salvar os filtros atuais antes de recarregar
                 const filtroClienteAtual = $('#filtroCliente').val();
                 const filtroProdutoAtual = $('#filtroProduto').val();
                 const filtroPedidoAtual = $('#filtroPedido').val();
 
-                // Carregar clientes
                 const responseClientes = await fetch('/api/client/GetAll');
                 clientes = await responseClientes.json();
 
-                // Carregar produtos
                 const responseProdutos = await fetch('/api/product/GetAll');
                 produtos = await responseProdutos.json();
 
-                // Carregar pedidos
                 const responsePedidos = await fetch('/api/order/GetAll');
                 pedidos = await responsePedidos.json();
 
-                // Reaplica os filtros se existirem
                 if (filtroClienteAtual) {
                     $('#filtroCliente').val(filtroClienteAtual);
                     filtrarClientes();
@@ -1695,12 +1686,10 @@
             }
         }
 
-                // Modifique as funções de filtro para limpar a variável quando o campo estiver vazio:
         function filtrarClientes() {
             const termo = $('#filtroCliente').val().toLowerCase();
 
             if (!termo) {
-                // Se não há termo de busca, limpar o filtro
                 clientesFiltrados = [];
                 paginaAtualClientes = 1;
                 atualizarListaClientes();
@@ -1717,7 +1706,6 @@
         }
 
             function atualizarListasAposAcao() {
-        // Verifica se há filtros ativos e reaplica se necessário
         const filtroClienteAtual = $('#filtroCliente').val();
         const filtroProdutoAtual = $('#filtroProduto').val();
         const filtroPedidoAtual = $('#filtroPedido').val();
@@ -1748,7 +1736,6 @@
             const termo = $('#filtroProduto').val().toLowerCase();
 
             if (!termo) {
-                // Se não há termo de busca, limpar o filtro
                 produtosFiltrados = [];
                 paginaAtualProdutos = 1;
                 atualizarListaProdutos();
@@ -1767,7 +1754,6 @@
             const termo = $('#filtroPedido').val().toLowerCase();
 
             if (!termo) {
-                // Se não há termo de busca, limpar o filtro
                 pedidosFiltrados = [];
                 paginaAtualPedidos = 1;
                 atualizarListaPedidos();
@@ -1791,7 +1777,7 @@
             const form = document.getElementById("formCliente");
 
             form.addEventListener("submit", async (e) => {
-                e.preventDefault(); // Impede o recarregamento da página
+                e.preventDefault();
 
                 const nome = document.getElementById("nomeCliente").value;
                 const email = document.getElementById("emailCliente").value;
@@ -1817,7 +1803,7 @@
                     if (data.success) {
                         Swal.fire('Sucesso!', 'Cliente cadastrado com sucesso!', 'success');
                         form.reset();
-                        await carregarDadosClientes(); // Atualize a lista, se existir
+                        await carregarDadosClientes();
                     } else {
                         Swal.fire('Erro', data.message, 'error');
                     }
@@ -1831,7 +1817,7 @@
             const form = document.getElementById("formProduto");
 
             form.addEventListener("submit", async (e) => {
-                e.preventDefault(); // Impede o recarregamento da página
+                e.preventDefault();
 
                 const nome = document.getElementById("nomeProduto").value;
                 const descricao = document.getElementById("descricaoProduto").value;
@@ -1860,7 +1846,7 @@
                     if (data.success) {
                         Swal.fire('Sucesso!', 'Produto cadastrado com sucesso!', 'success');
                         form.reset();
-                        await carregarDadosClientes(); // Atualize a lista, se existir
+                        await carregarDadosClientes(); 
                     } else {
                         Swal.fire('Erro', data.message, 'error');
                     }
@@ -1870,10 +1856,9 @@
             });
         });
 
-        // Função para abrir popup de edição
         async function editarProduto(id) {
             try {
-                // Buscar os dados do produto
+                
                 const produto = produtos.data.find(p => p.id === id);
 
                 if (!produto) {
@@ -1881,7 +1866,6 @@
                     return;
                 }
 
-                // Criar o HTML do formulário
                 const formHtml = `
                     <div class="text-start">
                         <div class="mb-3">
@@ -1911,7 +1895,6 @@
                     </div>
                 `;
 
-                // Mostrar o popup
                 const { value: formValues } = await Swal.fire({
                     title: '<i class="fas fa-edit"></i> Editar Produto',
                     html: formHtml,
@@ -1922,7 +1905,6 @@
                     confirmButtonColor: '#667eea',
                     cancelButtonColor: '#6c757d',
                     preConfirm: () => {
-                        // Pegar os valores dos campos
                         const nome = document.getElementById('swal-nome').value.trim();
                         const descricao = document.getElementById('swal-descricao').value.trim();
                         const preco = parseFloat(document.getElementById('swal-preco').value);
@@ -1953,12 +1935,10 @@
                         };
                     },
                     didOpen: () => {
-                        // Focar no primeiro campo
                         document.getElementById('swal-nome').focus();
                     }
                 });
 
-                // Se o usuário confirmou (clicou em Salvar)
                 if (formValues) {
                     await salvarEdicaoProduto(formValues);
                 }
@@ -1969,10 +1949,8 @@
             }
         }
 
-        // Função para salvar a edição do produto
         async function salvarEdicaoProduto(produto) {
             try {
-                // Fazer a requisição PUT para a API
                 const response = await fetch('/api/product/Put', {
                     method: 'PUT',
                     headers: {
@@ -1987,7 +1965,6 @@
                     // Mostrar sucesso
                     Swal.fire('Sucesso!', 'Sucesso ao atualizar produto!', 'success');
 
-                    // Recarregar a lista de produtos
                     await carregarDadosClientes();
 
                 } else {
