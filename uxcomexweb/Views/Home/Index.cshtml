@@ -603,7 +603,7 @@
                 }
             });
 
-            setTimeout(() => carregarDadosClientes(), 500);
+            setTimeout(async () => await carregarDadosClientes(), 500);
             $('#descartarPedido').click(function() {
             descartarPedido();
             });
@@ -735,7 +735,7 @@
 
                 // Só execute este código após o pedido ser enviado com sucesso
                 pedidos.data.push(pedido);
-                carregarDadosClientes();
+                await carregarDadosClientes();
                 atualizarListaPedidos();
                 atualizarListaProdutos();
 
@@ -973,7 +973,7 @@
                     const tbody = $('#listaProdutos');
                     tbody.empty();
 
-                    const lista = produtosFiltrados?.length > 0 || $('#filtroProduto').val() ? produtosFiltrados : produtos.data;
+                    const lista = produtosFiltrados?.length > 0 || $('#filtroProduto').val() ? produtosFiltrados : produtos.data.filter(f => f.isActive);
                     lista.sort((a, b) => a.name.localeCompare(b.name))
                     const totalPaginas = Math.ceil(lista.length / produtosPorPagina);
                     const inicio = (paginaAtualProdutos - 1) * produtosPorPagina;
@@ -1063,7 +1063,7 @@
             const select = $('#produtoPedido');
             select.find('option:not(:first)').remove();
 
-            produtos.data.forEach(produto => {
+            produtos.data.filter(f => f.isActive).forEach(produto => {
                 if (produto.stockQuantity > 0) {
                     select.append(`<option value="${produto.id}">${produto.name} (Estoque: ${produto.stockQuantity})</option>`);
                 }
@@ -1248,7 +1248,7 @@
 
         function atualizarDashboard() {
             $('#totalClientes').text(clientes.data.filter(f => f.isActive).length);
-            $('#totalProdutos').text(produtos.data.length);
+            $('#totalProdutos').text(produtos.data.filter(f => f.isActive).length);
             $('#totalPedidos').text(pedidos.data.length);
 
             const pedidosFinalizados = pedidos.data.filter(p => p.status == 3);
@@ -1309,7 +1309,6 @@
             $('#produtosMaisVendidos').html(htmlProdutosMaisVendidos);
         }
 
-        // Funções de ação
         async function excluirCliente(id) {
             const result = await Swal.fire({
                 title: 'Tem certeza?',
@@ -1329,7 +1328,7 @@
                     let response = await removeClient(clienteApagado.id);
 
                     if (response.success) {
-                        carregarDadosClientes();
+                        await carregarDadosClientes();
                         Swal.fire('Excluído!', 'Cliente foi removido.', 'success');
                     } else {
                         Swal.fire('Erro', 'Não foi possível excluir o cliente: ' + response.message, 'error');
@@ -1359,7 +1358,7 @@
                     let response = await reativateClient(clienteReativado);
 
                     if (response.success) {
-                        carregarDadosClientes();
+                        await carregarDadosClientes();
                         Swal.fire('Reativado!', 'Cliente foi reativado.', 'success');
                     } else {
                         Swal.fire('Erro', 'Não foi possível reativar o cliente: ' + response.message, 'error');
@@ -1439,7 +1438,7 @@
                     let response = await removeProduct(produtoApagado.id);
 
                     if (response.success) {
-                        carregarDadosClientes();
+                        await carregarDadosClientes();
                         Swal.fire('Excluído!', 'Produto foi removido.', 'success');
                     } else {
                         Swal.fire('Erro', 'Não foi possível excluir o produto: ' + response.message, 'error');
@@ -1498,7 +1497,24 @@
             });
         }
 
-        function verDetalhes(pedidoId) {
+        function statusNome(status) {
+            switch (status) {
+                case 0:
+                    return 'Pendente';
+                case 1:
+                    return 'Novo';
+                case 2:
+                    return 'Processando';
+                case 3:
+                    return 'Completo';
+                case 4:
+                    return 'Cancelado';
+                default:
+                    return 'Desconhecido';
+            }
+        }
+
+                function verDetalhes(pedidoId) {
             const pedido = pedidos.data.find(p => p.id === pedidoId);
             const clientName = clientes.data.find(f => f.id == pedido.clientId).name;
             let detalhes = `
@@ -1506,7 +1522,7 @@
                     <h5>Pedido #${pedido.id}</h5>
                     <p><strong>Cliente:</strong> ${clientName}</p>
                     <p><strong>Data:</strong> ${pedido.createdAt}</p>
-                    <p><strong>Status:</strong> ${pedido.status}</p>
+                    <p><strong>Status:</strong> ${statusNome(pedido.status)}</p>
                     <hr>
                     <h6>Itens:</h6>
                     <ul>
@@ -1583,7 +1599,7 @@
                 pedido.status = novoStatus;
 
                 await atualizarPedidoStatus(pedido);
-                carregarDadosClientes();
+                await carregarDadosClientes();
                 atualizarListaPedidos();
                 atualizarDashboard();
 
@@ -1615,7 +1631,7 @@
                     Swal.fire('Sucesso!', 'Sucesso ao atualizar produto!', 'success');
 
                     // Recarregar a lista de produtos
-                    carregarDadosClientes();
+                    await carregarDadosClientes();
 
                 } else {
                     Swal.fire('Erro', 'Erro ao atualizar produto: ' + err.message, 'error');
@@ -1627,8 +1643,13 @@
             }
         }
 
-        async function carregarDadosClientes() {
+                async function carregarDadosClientes() {
             try {
+                // Salvar os filtros atuais antes de recarregar
+                const filtroClienteAtual = $('#filtroCliente').val();
+                const filtroProdutoAtual = $('#filtroProduto').val();
+                const filtroPedidoAtual = $('#filtroPedido').val();
+
                 // Carregar clientes
                 const responseClientes = await fetch('/api/client/GetAll');
                 clientes = await responseClientes.json();
@@ -1641,10 +1662,31 @@
                 const responsePedidos = await fetch('/api/order/GetAll');
                 pedidos = await responsePedidos.json();
 
-                // Atualizar interface
-                atualizarListaClientes();
-                atualizarListaProdutos();
-                atualizarListaPedidos();
+                // Reaplica os filtros se existirem
+                if (filtroClienteAtual) {
+                    $('#filtroCliente').val(filtroClienteAtual);
+                    filtrarClientes();
+                } else {
+                    clientesFiltrados = [];
+                    atualizarListaClientes();
+                }
+
+                if (filtroProdutoAtual) {
+                    $('#filtroProduto').val(filtroProdutoAtual);
+                    filtrarProdutos();
+                } else {
+                    produtosFiltrados = [];
+                    atualizarListaProdutos();
+                }
+
+                if (filtroPedidoAtual) {
+                    $('#filtroPedido').val(filtroPedidoAtual);
+                    filtrarPedidos();
+                } else {
+                    pedidosFiltrados = [];
+                    atualizarListaPedidos();
+                }
+
                 atualizarDashboard();
 
             } catch (error) {
@@ -1653,8 +1695,99 @@
             }
         }
 
+                // Modifique as funções de filtro para limpar a variável quando o campo estiver vazio:
+        function filtrarClientes() {
+            const termo = $('#filtroCliente').val().toLowerCase();
 
-            document.addEventListener("DOMContentLoaded", () => {
+            if (!termo) {
+                // Se não há termo de busca, limpar o filtro
+                clientesFiltrados = [];
+                paginaAtualClientes = 1;
+                atualizarListaClientes();
+                return;
+            }
+
+            clientesFiltrados = clientes.data.filter(c =>
+                c.name.toLowerCase().includes(termo) ||
+                c.email.toLowerCase().includes(termo)
+            );
+
+            paginaAtualClientes = 1;
+            atualizarListaClientes();
+        }
+
+            function atualizarListasAposAcao() {
+        // Verifica se há filtros ativos e reaplica se necessário
+        const filtroClienteAtual = $('#filtroCliente').val();
+        const filtroProdutoAtual = $('#filtroProduto').val();
+        const filtroPedidoAtual = $('#filtroPedido').val();
+
+        if (filtroClienteAtual) {
+            filtrarClientes();
+        } else {
+            clientesFiltrados = [];
+            atualizarListaClientes();
+        }
+
+        if (filtroProdutoAtual) {
+            filtrarProdutos();
+        } else {
+            produtosFiltrados = [];
+            atualizarListaProdutos();
+        }
+
+        if (filtroPedidoAtual) {
+            filtrarPedidos();
+        } else {
+            pedidosFiltrados = [];
+            atualizarListaPedidos();
+        }
+        }
+
+                function filtrarProdutos() {
+            const termo = $('#filtroProduto').val().toLowerCase();
+
+            if (!termo) {
+                // Se não há termo de busca, limpar o filtro
+                produtosFiltrados = [];
+                paginaAtualProdutos = 1;
+                atualizarListaProdutos();
+                return;
+            }
+
+            produtosFiltrados = produtos.data.filter(c =>
+                c.name.toLowerCase().includes(termo)
+            );
+
+            paginaAtualProdutos = 1;
+            atualizarListaProdutos();
+        }
+
+        function filtrarPedidos() {
+            const termo = $('#filtroPedido').val().toLowerCase();
+
+            if (!termo) {
+                // Se não há termo de busca, limpar o filtro
+                pedidosFiltrados = [];
+                paginaAtualPedidos = 1;
+                atualizarListaPedidos();
+                return;
+            }
+
+            pedidosFiltrados = pedidos.data.filter(p => {
+                const clienteNome = clientes.data.find(f => f.id == p.clientId)?.name?.toLowerCase() || '';
+                return clienteNome.includes(termo) ||
+                       p.id.toString().includes(termo);
+            });
+
+            paginaAtualPedidos = 1;
+            atualizarListaPedidos();
+        }
+
+
+
+
+                document.addEventListener("DOMContentLoaded", () => {
             const form = document.getElementById("formCliente");
 
             form.addEventListener("submit", async (e) => {
@@ -1684,7 +1817,7 @@
                     if (data.success) {
                         Swal.fire('Sucesso!', 'Cliente cadastrado com sucesso!', 'success');
                         form.reset();
-                        carregarDadosClientes(); // Atualize a lista, se existir
+                        await carregarDadosClientes(); // Atualize a lista, se existir
                     } else {
                         Swal.fire('Erro', data.message, 'error');
                     }
@@ -1727,7 +1860,7 @@
                     if (data.success) {
                         Swal.fire('Sucesso!', 'Produto cadastrado com sucesso!', 'success');
                         form.reset();
-                        carregarDadosClientes(); // Atualize a lista, se existir
+                        await carregarDadosClientes(); // Atualize a lista, se existir
                     } else {
                         Swal.fire('Erro', data.message, 'error');
                     }
@@ -1855,7 +1988,7 @@
                     Swal.fire('Sucesso!', 'Sucesso ao atualizar produto!', 'success');
 
                     // Recarregar a lista de produtos
-                    carregarDadosClientes();
+                    await carregarDadosClientes();
 
                 } else {
                     Swal.fire('Erro', 'Erro ao atualizar produto: ' + err.message, 'error');
