@@ -1538,7 +1538,13 @@
 
         async function trocarStatusPedido(pedidoId) {
             const pedido = pedidos.data.find(p => p.id === pedidoId);
-
+            const statusOptions = {
+                0: 'Pendente',
+                1: 'Novo',
+                2: 'Processando',
+                3: 'Completo',
+                4: 'Cancelado'
+            };
             let optionsHtml = '';
             Object.keys(statusOptions).forEach(key => {
                 const selected = pedido.status == key ? 'selected' : '';
@@ -1550,7 +1556,7 @@
                 html: `
                     <div class="text-start">
                         <p><strong>Pedido:</strong> #${pedido.id}</p>
-                        <p><strong>Status atual:</strong> ${obterDescricaoStatus[pedido.status]}</p>
+                        <p><strong>Status atual:</strong> ${obterDescricaoStatus(pedido.status)}</p>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Novo Status:</label>
                             <select id="swal-status" class="form-select">
